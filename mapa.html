@@ -1,0 +1,2680 @@
+<!doctype html>
+<html lang="pt-BR">
+
+<head>
+  <meta charset="UTF-8" />
+  <title>Mapa Interativo - Planejamento DESC</title>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.css" />
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet.draw/1.0.4/leaflet.draw.css" />
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet.markercluster/1.5.3/MarkerCluster.css" />
+  <link rel="stylesheet"
+    href="https://cdnjs.cloudflare.com/ajax/libs/leaflet.markercluster/1.5.3/MarkerCluster.Default.css" />
+  <style>
+    /* [Redesign] Tema geral e layout futurista minimalista - FULLSCREEN */
+    :root {
+      --bg-body: #020617;
+      --bg-shell: rgba(15, 23, 42, 0.95);
+      --bg-elevated: rgba(15, 23, 42, 0.85);
+      --bg-elevated-soft: rgba(15, 23, 42, 0.75);
+      --border-soft: rgba(148, 163, 184, 0.35);
+      --border-strong: rgba(148, 163, 184, 0.6);
+      --accent: #22d3ee;
+      --accent-strong: #38bdf8;
+      --accent-alt: #a855f7;
+      --danger: #f97373;
+      --text-main: #e5e7eb;
+      --text-muted: #9ca3af;
+      --text-soft: #6b7280;
+      --shadow-soft: 0 24px 60px rgba(15, 23, 42, 0.8);
+      --radius-lg: 18px;
+      --radius-md: 12px;
+      --radius-pill: 999px;
+      --transition-fast: 0.18s ease-out;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      font-family:
+        system-ui,
+        -apple-system,
+        BlinkMacSystemFont,
+        "Segoe UI",
+        sans-serif;
+    }
+
+    /* [Redesign] Body ocupa toda a tela sem padding */
+    body {
+      background:
+        radial-gradient(circle at 0% 0%, #1f2937 0, transparent 50%),
+        radial-gradient(circle at 100% 0%, #0e7490 0, transparent 50%),
+        radial-gradient(circle at 100% 100%, #1d1b4b 0, transparent 50%),
+        radial-gradient(circle at 0% 100%, #0f172a 0, transparent 45%),
+        #020617;
+      color: var(--text-main);
+      min-height: 100vh;
+      height: 100vh;
+      overflow: hidden;
+    }
+
+    /* [Redesign] Shell principal ocupa toda a tela - layout em grid */
+    #app {
+      width: 100vw;
+      height: 100vh;
+      display: grid;
+      grid-template-columns: 1fr 420px;
+      grid-template-rows: auto auto 1fr auto;
+      gap: 0;
+      background: linear-gradient(135deg,
+          rgba(15, 23, 42, 0.96),
+          rgba(17, 24, 39, 0.96));
+      position: relative;
+      overflow: hidden;
+    }
+
+    #app::before {
+      content: "";
+      position: absolute;
+      inset: 0;
+      background:
+        radial-gradient(circle at 80% 0%,
+          rgba(56, 189, 248, 0.13) 0,
+          transparent 55%),
+        radial-gradient(circle at 10% 100%,
+          rgba(129, 140, 248, 0.12) 0,
+          transparent 55%);
+      pointer-events: none;
+      opacity: 0.9;
+    }
+
+    #app>* {
+      position: relative;
+      z-index: 1;
+    }
+
+    /* [Redesign] Cabeçalho compacto no topo */
+    header {
+      grid-column: 1 / -1;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 12px 20px;
+      background: rgba(15, 23, 42, 0.9);
+      border-bottom: 1px solid var(--border-soft);
+    }
+
+    .header-left {
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+    }
+
+    header h2 {
+      font-size: 1.2rem;
+      font-weight: 750;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      color: #f9fafb;
+    }
+
+    .header-subtitle {
+      font-size: 0.72rem;
+      color: var(--text-soft);
+    }
+
+    /* [NOVO] Barra de controles no header */
+    .header-controls {
+      display: flex;
+      gap: 10px;
+      align-items: center;
+      flex-wrap: wrap;
+      flex: 1;
+    }
+
+    /* [NOVO] Grupo de botões centralizados */
+    .header-buttons-center {
+      display: flex;
+      gap: 10px;
+      align-items: center;
+      margin-left: auto;
+      margin-right: auto;
+    }
+
+    /* [Redesign] Bloco de carregamento de CSV no header */
+    .csv-block {
+      display: flex;
+      gap: 10px;
+      align-items: center;
+    }
+
+    .file-status {
+      font-size: 0.75rem;
+      color: var(--accent-strong);
+    }
+
+    .error {
+      color: #fecaca;
+      font-size: 0.72rem;
+      position: absolute;
+      top: 100%;
+      left: 0;
+      margin-top: 2px;
+    }
+
+    #leafletWarning {
+      display: none;
+      grid-column: 1 / -1;
+      padding: 8px 12px;
+      background:
+        radial-gradient(circle at 0 0,
+          rgba(251, 191, 36, 0.2) 0,
+          transparent 60%),
+        rgba(31, 41, 55, 0.9);
+      color: #fbbf24;
+      font-size: 0.78rem;
+      border-bottom: 1px solid rgba(251, 191, 36, 0.3);
+    }
+
+    /* [NOVO] Barra de legenda horizontal acima do mapa */
+    .legend-bar {
+      grid-column: 1;
+      grid-row: 2;
+      display: none;
+      padding: 10px 14px;
+      background: rgba(15, 23, 42, 0.92);
+      border-bottom: 1px solid var(--border-soft);
+    }
+
+    .legend-bar-title {
+      font-size: 0.72rem;
+      font-weight: 650;
+      color: var(--text-muted);
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      margin-bottom: 6px;
+    }
+
+    /* [Redesign] Área principal: mapa à esquerda */
+    .map-area {
+      grid-column: 1;
+      grid-row: 3;
+      position: relative;
+      overflow: hidden;
+    }
+
+    #map-wrapper {
+      position: absolute;
+      inset: 0;
+      background:
+        radial-gradient(circle at 0 0,
+          rgba(56, 189, 248, 0.22) 0,
+          transparent 55%),
+        radial-gradient(circle at 100% 100%,
+          rgba(129, 140, 248, 0.22) 0,
+          transparent 55%),
+        #020617;
+    }
+
+    #map {
+      width: 100%;
+      height: 100%;
+    }
+
+    #mapOverlay {
+      position: absolute;
+      inset: 0;
+      background:
+        radial-gradient(circle at 0 0,
+          rgba(15, 23, 42, 0.6) 0,
+          transparent 70%),
+        rgba(15, 23, 42, 0.9);
+      color: #e5e7eb;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+      text-align: center;
+      padding: 20px;
+      font-size: 0.96rem;
+      letter-spacing: 0.02em;
+      z-index: 500;
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 0.25s ease;
+    }
+
+    #mapOverlay.visible {
+      opacity: 1;
+      pointer-events: auto;
+    }
+
+    /* [Redesign] Ícone do botão de camadas */
+    .layers-toggle-icon {
+      position: absolute;
+      top: 10px;
+      right: 10px;
+      z-index: 1000;
+      background:
+        radial-gradient(circle at 0 0,
+          rgba(56, 189, 248, 0.35) 0,
+          transparent 55%),
+        rgba(15, 23, 42, 0.92);
+      border: 1px solid rgba(148, 163, 184, 0.6);
+      border-radius: 50%;
+      width: 38px;
+      height: 38px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 1rem;
+      cursor: pointer;
+      color: var(--accent-strong);
+      box-shadow: 0 12px 26px rgba(15, 23, 42, 0.9);
+      transition:
+        transform var(--transition-fast),
+        box-shadow var(--transition-fast),
+        background-color var(--transition-fast),
+        border-color var(--transition-fast);
+    }
+
+    .layers-toggle-icon:hover {
+      transform: translateY(-1px) scale(1.02);
+      box-shadow: 0 16px 38px rgba(15, 23, 42, 0.95);
+      border-color: rgba(56, 189, 248, 0.9);
+    }
+
+    .layers-toggle-icon:active {
+      transform: translateY(0) scale(0.98);
+    }
+
+    /* [Redesign] Painel lateral direito - filtros e controles empilhados */
+    .sidebar {
+      grid-column: 2;
+      grid-row: 2 / 4;
+      display: flex;
+      flex-direction: column;
+      gap: 15px;
+      padding: 12px;
+      background: rgba(15, 23, 42, 0.96);
+      border-left: 1px solid var(--border-soft);
+      overflow-y: auto;
+      scrollbar-width: thin;
+      scrollbar-color: rgba(56, 189, 248, 0.7) rgba(15, 23, 42, 1);
+    }
+
+    .sidebar::-webkit-scrollbar {
+      width: 6px;
+    }
+
+    .sidebar::-webkit-scrollbar-track {
+      background: rgba(15, 23, 42, 1);
+    }
+
+    .sidebar::-webkit-scrollbar-thumb {
+      background: linear-gradient(180deg, #22d3ee, #a855f7);
+      border-radius: 999px;
+    }
+
+    /* [Redesign] Seções do sidebar */
+    .sidebar-section {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      padding: 12px;
+      border-radius: var(--radius-md);
+      background: rgba(15, 23, 42, 0.9);
+      border: 1px solid var(--border-soft);
+    }
+
+    .sidebar-section-title {
+      font-size: 0.78rem;
+      font-weight: 650;
+      color: var(--text-muted);
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      margin-bottom: 4px;
+    }
+
+    .control-group {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+
+    label {
+      font-weight: 500;
+      font-size: 0.75rem;
+      color: var(--text-muted);
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+    }
+
+    select,
+    input[type="text"] {
+      padding: 7px 8px;
+      border-radius: 10px;
+      border: 1px solid rgba(55, 65, 81, 0.85);
+      background:
+        radial-gradient(circle at 0 0,
+          rgba(56, 189, 248, 0.12) 0,
+          transparent 40%),
+        #020617;
+      color: var(--text-main);
+      font-size: 0.82rem;
+      outline: none;
+      transition:
+        border-color var(--transition-fast),
+        box-shadow var(--transition-fast),
+        background-color var(--transition-fast),
+        transform var(--transition-fast);
+    }
+
+    select::placeholder,
+    input[type="text"]::placeholder {
+      color: var(--text-soft);
+    }
+
+    select:focus,
+    input[type="text"]:focus {
+      border-color: rgba(56, 189, 248, 0.9);
+      box-shadow: 0 0 0 1px rgba(56, 189, 248, 0.75);
+      transform: translateY(-1px);
+    }
+
+    select:disabled,
+    input[type="text"]:disabled {
+      opacity: 0.6;
+      cursor: not-allowed;
+      background: #020617;
+    }
+
+    /* [AJUSTE] Estratégia sem scrollbar */
+    #estrategiaFilter {
+      max-height: 200px;
+      overflow-y: auto;
+    }
+
+    #tipVeicFilter {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+      padding: 6px 8px;
+      border-radius: 10px;
+      background: rgba(15, 23, 42, 0.9);
+      border: 1px dashed rgba(75, 85, 99, 0.8);
+    }
+
+    #tipVeicFilter label {
+      font-weight: 400;
+      text-transform: none;
+      letter-spacing: 0;
+      font-size: 0.78rem;
+      color: var(--text-main);
+    }
+
+    #tipVeicFilter input[type="checkbox"] {
+      accent-color: var(--accent-strong);
+      cursor: pointer;
+    }
+
+    /* [Redesign] Botões gerais */
+    .btn-secondary {
+      padding: 8px 14px;
+      border-radius: var(--radius-pill);
+      border: 1px solid rgba(148, 163, 184, 0.7);
+      background: linear-gradient(135deg,
+          rgba(15, 23, 42, 0.95),
+          rgba(17, 24, 39, 0.95));
+      color: var(--text-main);
+      font-size: 0.76rem;
+      font-weight: 550;
+      cursor: pointer;
+      transition:
+        background var(--transition-fast),
+        border-color var(--transition-fast),
+        box-shadow var(--transition-fast),
+        transform var(--transition-fast),
+        color var(--transition-fast);
+      width: 100%;
+    }
+
+    .btn-secondary:hover:not(:disabled) {
+      border-color: var(--accent);
+      color: var(--accent);
+      box-shadow: 0 8px 20px rgba(15, 23, 42, 0.9);
+      transform: translateY(-1px);
+    }
+
+    .btn-secondary:disabled {
+      opacity: 0.45;
+      cursor: default;
+      box-shadow: none;
+    }
+
+    /* [AJUSTE] Botões compactos para o header */
+    .btn-header {
+      padding: 7px 14px;
+      border-radius: var(--radius-pill);
+      border: 1px solid rgba(148, 163, 184, 0.7);
+      background: linear-gradient(135deg,
+          rgba(15, 23, 42, 0.95),
+          rgba(17, 24, 39, 0.95));
+      color: var(--text-main);
+      font-size: 0.74rem;
+      font-weight: 550;
+      cursor: pointer;
+      transition:
+        background var(--transition-fast),
+        border-color var(--transition-fast),
+        box-shadow var(--transition-fast),
+        transform var(--transition-fast),
+        color var(--transition-fast);
+      white-space: nowrap;
+    }
+
+    .btn-header:hover:not(:disabled) {
+      border-color: var(--accent);
+      color: var(--accent);
+      box-shadow: 0 8px 20px rgba(15, 23, 42, 0.9);
+      transform: translateY(-1px);
+    }
+
+    .btn-header:disabled {
+      opacity: 0.45;
+      cursor: default;
+      box-shadow: none;
+    }
+
+    .btn-primary {
+      padding: 9px 16px;
+      border-radius: var(--radius-pill);
+      border: none;
+      background:
+        radial-gradient(circle at 0 0,
+          rgba(94, 234, 212, 0.4) 0,
+          transparent 45%),
+        linear-gradient(135deg, #22d3ee, #a855f7);
+      color: #020617;
+      font-size: 0.76rem;
+      font-weight: 650;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+      box-shadow: 0 12px 30px rgba(6, 78, 59, 0.7);
+      transition:
+        transform var(--transition-fast),
+        box-shadow var(--transition-fast),
+        filter var(--transition-fast),
+        opacity var(--transition-fast);
+      width: 100%;
+    }
+
+    .btn-primary:hover:not(:disabled) {
+      transform: translateY(-1px) scale(1.01);
+      filter: brightness(1.05);
+      box-shadow: 0 16px 40px rgba(6, 95, 70, 0.85);
+    }
+
+    .btn-primary:active:not(:disabled) {
+      transform: translateY(0) scale(0.99);
+      filter: brightness(0.97);
+      box-shadow: 0 8px 18px rgba(6, 78, 59, 0.7);
+    }
+
+    .btn-primary:disabled {
+      opacity: 0.5;
+      cursor: default;
+      box-shadow: none;
+    }
+
+    .btn-primary-header {
+      padding: 7px 14px;
+      border-radius: var(--radius-pill);
+      border: none;
+      background:
+        radial-gradient(circle at 0 0,
+          rgba(94, 234, 212, 0.4) 0,
+          transparent 45%),
+        linear-gradient(135deg, #22d3ee, #a855f7);
+      color: #020617;
+      font-size: 0.74rem;
+      font-weight: 650;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+      box-shadow: 0 12px 30px rgba(6, 78, 59, 0.7);
+      transition:
+        transform var(--transition-fast),
+        box-shadow var(--transition-fast),
+        filter var(--transition-fast),
+        opacity var(--transition-fast);
+      white-space: nowrap;
+    }
+
+    .btn-primary-header:hover:not(:disabled) {
+      transform: translateY(-1px) scale(1.01);
+      filter: brightness(1.05);
+      box-shadow: 0 16px 40px rgba(6, 95, 70, 0.85);
+    }
+
+    .btn-primary-header:active:not(:disabled) {
+      transform: translateY(0) scale(0.99);
+      filter: brightness(0.97);
+      box-shadow: 0 8px 18px rgba(6, 78, 59, 0.7);
+    }
+
+    .btn-primary-header:disabled {
+      opacity: 0.5;
+      cursor: default;
+      box-shadow: none;
+    }
+
+    #markRecordedBtn::before,
+    #markRecordedBtnHeader::before {
+      content: "💾";
+      margin-right: 4px;
+    }
+
+    #recordConfirmBtn::before {
+      content: "✅";
+      margin-right: 4px;
+    }
+
+    .btn-toggle {
+      background:
+        radial-gradient(circle at 0 0,
+          rgba(45, 212, 191, 0.32) 0,
+          transparent 45%),
+        linear-gradient(135deg, #0ea5e9, #22c55e);
+      border: 1px solid rgba(34, 197, 94, 0.6);
+      color: #020617;
+      border-radius: var(--radius-pill);
+      padding: 7px 14px;
+      font-size: 0.74rem;
+      font-weight: 650;
+      cursor: pointer;
+      transition:
+        background var(--transition-fast),
+        box-shadow var(--transition-fast),
+        transform var(--transition-fast),
+        opacity var(--transition-fast);
+      white-space: nowrap;
+    }
+
+    .btn-toggle.off {
+      background: linear-gradient(135deg, #020617, #0f172a);
+      border-color: rgba(75, 85, 99, 0.85);
+      color: var(--text-muted);
+    }
+
+    .btn-toggle:hover {
+      transform: translateY(-1px);
+      box-shadow: 0 10px 26px rgba(8, 47, 73, 0.9);
+    }
+
+    .btn-toggle:disabled {
+      opacity: 0.6;
+      cursor: default;
+      box-shadow: none;
+    }
+
+    #clearSelectionBtnHeader {
+      background: linear-gradient(135deg, #7f1d1d, #b91c1c);
+      border: 1px solid rgba(239, 68, 68, 0.7);
+      color: #fee2e2;
+      border-radius: var(--radius-pill);
+      padding: 7px 14px;
+      font-size: 0.74rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition:
+        background var(--transition-fast),
+        box-shadow var(--transition-fast),
+        transform var(--transition-fast),
+        opacity var(--transition-fast);
+      white-space: nowrap;
+    }
+
+    #clearSelectionBtnHeader:hover:not(:disabled) {
+      background: linear-gradient(135deg, #991b1b, #dc2626);
+      box-shadow: 0 10px 26px rgba(127, 29, 29, 0.9);
+      transform: translateY(-1px);
+    }
+
+    #clearSelectionBtnHeader:disabled {
+      opacity: 0.5;
+      cursor: default;
+      box-shadow: none;
+    }
+
+    .legend-container {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+      align-items: center;
+    }
+
+    .legend-item {
+      display: inline-flex;
+      gap: 5px;
+      align-items: center;
+      padding: 3px 8px;
+      border-radius: var(--radius-pill);
+      background:
+        radial-gradient(circle at 0 0,
+          rgba(56, 189, 248, 0.22) 0,
+          transparent 60%),
+        rgba(15, 23, 42, 0.95);
+      font-size: 0.72rem;
+      border: 1px solid rgba(148, 163, 184, 0.4);
+      color: var(--text-main);
+    }
+
+    .legend-swatch {
+      width: 12px;
+      height: 12px;
+      border-radius: 50%;
+      border: 2px solid #020617;
+      box-shadow: 0 0 0 1px rgba(15, 23, 42, 0.9);
+    }
+
+    .selection-summary-table {
+      display: flex;
+      flex-direction: column;
+    }
+
+    .selection-summary-table h3 {
+      font-size: 0.78rem;
+      font-weight: 650;
+      color: var(--text-main);
+      margin-bottom: 8px;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+    }
+
+    .selection-summary-table table {
+      width: 100%;
+      border-collapse: collapse;
+      border-radius: 12px;
+      overflow: hidden;
+      background: rgba(15, 23, 42, 0.98);
+      font-size: 0.75rem;
+      border: 1px solid rgba(55, 65, 81, 0.9);
+    }
+
+    .selection-summary-table thead {
+      background:
+        radial-gradient(circle at 0 0,
+          rgba(56, 189, 248, 0.2) 0,
+          transparent 55%),
+        rgba(17, 24, 39, 0.96);
+    }
+
+    .selection-summary-table th {
+      padding: 7px 8px;
+      text-align: left;
+      font-weight: 600;
+      color: var(--text-main);
+      border-bottom: 1px solid rgba(55, 65, 81, 0.9);
+    }
+
+    .selection-summary-table td {
+      padding: 6px 8px;
+      border-bottom: 1px solid rgba(31, 41, 55, 0.9);
+      color: var(--text-muted);
+    }
+
+    .selection-summary-table tbody tr:last-child td {
+      border-bottom: none;
+    }
+
+    .selection-summary-table tbody tr:hover {
+      background:
+        radial-gradient(circle at 0 0,
+          rgba(56, 189, 248, 0.18) 0,
+          transparent 55%),
+        rgba(15, 23, 42, 0.98);
+    }
+
+    .total-row {
+      background: #e5e7eb !important;
+      color: #1f2937 !important;
+      font-weight: 700 !important;
+    }
+
+    .total-row td {
+      color: #1f2937 !important;
+      border-top: 2px solid #9ca3af;
+    }
+
+    .badge-count {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 5px 12px;
+      border-radius: var(--radius-pill);
+      background:
+        radial-gradient(circle at 0 0,
+          rgba(56, 189, 248, 0.3) 0,
+          transparent 55%),
+        rgba(15, 23, 42, 0.9);
+      color: var(--accent-strong);
+      font-weight: 650;
+      font-size: 0.75rem;
+      border: 1px solid rgba(56, 189, 248, 0.7);
+      width: 100%;
+      justify-content: center;
+    }
+
+    #selectionList {
+      max-height: 180px;
+      overflow-y: auto;
+      border-radius: var(--radius-md);
+      padding: 8px;
+      background: rgba(15, 23, 42, 0.96);
+      border: 1px solid rgba(31, 41, 55, 0.95);
+      font-size: 0.75rem;
+      scrollbar-width: thin;
+      scrollbar-color: rgba(56, 189, 248, 0.7) rgba(15, 23, 42, 1);
+    }
+
+    #selectionList::-webkit-scrollbar {
+      width: 5px;
+    }
+
+    #selectionList::-webkit-scrollbar-track {
+      background: rgba(15, 23, 42, 1);
+    }
+
+    #selectionList::-webkit-scrollbar-thumb {
+      background: linear-gradient(180deg, #22d3ee, #a855f7);
+      border-radius: 999px;
+    }
+
+    #selectionList em {
+      color: var(--text-soft);
+    }
+
+    #selectionList ul {
+      list-style: none;
+      display: flex;
+      flex-direction: column;
+      gap: 5px;
+    }
+
+    .selection-item {
+      padding: 5px 7px;
+      border-radius: 10px;
+      background:
+        radial-gradient(circle at 0 0,
+          rgba(56, 189, 248, 0.24) 0,
+          transparent 45%),
+        rgba(15, 23, 42, 0.98);
+      border: 1px solid rgba(56, 189, 248, 0.4);
+      display: flex;
+      flex-direction: column;
+      gap: 3px;
+      color: var(--text-main);
+    }
+
+    .selection-item strong {
+      color: #e5e7eb;
+      font-size: 0.76rem;
+    }
+
+    .selection-meta {
+      display: inline-flex;
+      flex-wrap: wrap;
+      gap: 4px;
+      font-size: 0.7rem;
+      color: var(--text-muted);
+    }
+
+    .selection-meta span {
+      display: inline-flex;
+      align-items: center;
+      gap: 3px;
+      padding: 2px 6px;
+      border-radius: var(--radius-pill);
+      background: rgba(15, 23, 42, 0.96);
+      border: 1px solid rgba(56, 189, 248, 0.4);
+    }
+
+    .bottom-panel {
+      grid-column: 1;
+      grid-row: 4;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      padding: 10px 14px;
+      background: rgba(15, 23, 42, 0.96);
+      border-top: 1px solid var(--border-soft);
+      max-height: 200px;
+      overflow-y: auto;
+      scrollbar-width: thin;
+      scrollbar-color: rgba(56, 189, 248, 0.7) rgba(15, 23, 42, 1);
+    }
+
+    .bottom-panel::-webkit-scrollbar {
+      height: 6px;
+    }
+
+    .bottom-panel::-webkit-scrollbar-track {
+      background: rgba(15, 23, 42, 1);
+    }
+
+    .bottom-panel::-webkit-scrollbar-thumb {
+      background: linear-gradient(90deg, #22d3ee, #a855f7);
+      border-radius: 999px;
+    }
+
+    .bottom-panel-header {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .bottom-panel-content {
+      display: flex;
+      gap: 10px;
+    }
+
+    .custom-marker .marker-pin {
+      width: 18px;
+      height: 18px;
+      border-radius: 50% 50% 50% 0;
+      transform: rotate(-45deg);
+      position: relative;
+      display: block;
+      background: var(--marker-color, #22d3ee);
+      box-shadow:
+        0 0 0 2px rgba(15, 23, 42, 0.9),
+        0 8px 16px rgba(15, 23, 42, 0.9);
+      transition: all 0.2s ease-out;
+    }
+
+    .custom-marker .marker-pin::after {
+      content: "";
+      position: absolute;
+      top: 45%;
+      left: 45%;
+      width: 32%;
+      height: 32%;
+      background: radial-gradient(circle at 50% 35%,
+          #f9fafb 0,
+          #e5e7eb 55%,
+          #93c5fd 100%);
+      border-radius: 50%;
+      transform: rotate(45deg);
+      box-shadow:
+        inset 0 0 0 1px rgba(15, 23, 42, 0.4),
+        0 0 10px rgba(56, 189, 248, 0.8);
+    }
+
+    .custom-marker.selected .marker-pin {
+      transform: scale(1) rotate(-45deg);
+      background: #facc15 !important;
+      box-shadow:
+        0 0 0 3px #020617,
+        0 0 0 8px rgba(250, 204, 21, 0.6),
+        0 0 20px rgba(250, 204, 21, 0.9),
+        0 16px 32px rgba(0, 0, 0, 1);
+      border: 3px solid #fef3c7;
+      animation: pulse-selected 1.5s ease-in-out infinite;
+    }
+
+    @keyframes pulse-selected {
+
+      0%,
+      100% {
+        box-shadow:
+          0 0 0 3px #020617,
+          0 0 0 8px rgba(250, 204, 21, 0.6),
+          0 0 20px rgba(250, 204, 21, 0.9),
+          0 16px 32px rgba(0, 0, 0, 1);
+      }
+
+      50% {
+        box-shadow:
+          0 0 0 3px #020617,
+          0 0 0 12px rgba(250, 204, 21, 0.4),
+          0 0 28px rgba(250, 204, 21, 1),
+          0 16px 32px rgba(0, 0, 0, 1);
+      }
+    }
+
+    .custom-marker.selected .marker-pin::after {
+      background: radial-gradient(circle at 50% 35%,
+          #fef3c7 0,
+          #fde047 45%,
+          #22c55e 100%);
+      box-shadow: 0 0 16px rgba(16, 185, 129, 1);
+    }
+
+    .custom-marker.lightning .marker-pin {
+      width: 20px;
+      height: 20px;
+      border-radius: 4px;
+      transform: none;
+      background: linear-gradient(135deg, #f59e0b, #d97706);
+      box-shadow:
+        0 0 0 2px rgba(15, 23, 42, 0.9),
+        0 4px 8px rgba(0, 0, 0, 0.5);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .custom-marker.lightning .marker-pin::after {
+      content: "✂️";
+      position: static;
+      width: auto;
+      height: auto;
+      background: none;
+      border-radius: 0;
+      transform: none;
+      box-shadow: none;
+      color: #fff;
+      font-size: 14px;
+      line-height: 1;
+      text-shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
+    }
+
+    .custom-marker.lightning.selected .marker-pin {
+      background: #fbbf24 !important;
+      box-shadow:
+        0 0 0 3px #020617,
+        0 0 0 6px rgba(251, 191, 36, 0.6),
+        0 0 15px rgba(251, 191, 36, 0.8);
+      animation: pulse-lightning 1.5s infinite;
+      border: 2px solid #fff;
+    }
+
+    @keyframes pulse-lightning {
+      0% {
+        box-shadow:
+          0 0 0 3px #020617,
+          0 0 0 6px rgba(251, 191, 36, 0.6);
+      }
+
+      50% {
+        box-shadow:
+          0 0 0 3px #020617,
+          0 0 0 10px rgba(251, 191, 36, 0.3);
+      }
+
+      100% {
+        box-shadow:
+          0 0 0 3px #020617,
+          0 0 0 6px rgba(251, 191, 36, 0.6);
+      }
+    }
+
+    .custom-marker.lightning.recorded .marker-pin {
+      background: #111827;
+      box-shadow:
+        0 0 0 2px rgba(15, 23, 42, 0.9),
+        0 4px 8px rgba(0, 0, 0, 0.6);
+      border: 2px solid #111827;
+    }
+
+    .modal-overlay {
+      position: fixed;
+      inset: 0;
+      background: rgba(15, 23, 42, 0.85);
+      display: none;
+      align-items: center;
+      justify-content: center;
+      z-index: 9999;
+    }
+
+    .modal-overlay.active {
+      display: flex;
+    }
+
+    .modal {
+      position: fixed;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      background:
+        radial-gradient(circle at 0 0,
+          rgba(56, 189, 248, 0.28) 0,
+          transparent 55%),
+        rgba(15, 23, 42, 0.98);
+      border-radius: 18px;
+      padding: 18px 20px 16px;
+      max-width: 420px;
+      width: 90%;
+      box-shadow: 0 26px 60px rgba(15, 23, 42, 1);
+      border: 1px solid rgba(56, 189, 248, 0.6);
+      z-index: 10000;
+    }
+
+    .modal h3 {
+      margin-bottom: 8px;
+      font-size: 0.96rem;
+      font-weight: 650;
+      color: #e5e7eb;
+    }
+
+    .modal p {
+      font-size: 0.86rem;
+      color: var(--text-muted);
+    }
+
+    .modal-actions {
+      display: flex;
+      justify-content: flex-end;
+      gap: 8px;
+      margin-top: 16px;
+    }
+
+    .modal-close {
+      position: absolute;
+      top: 6px;
+      right: 10px;
+      border: none;
+      background: transparent;
+      font-size: 1.15rem;
+      cursor: pointer;
+      color: var(--text-soft);
+      transition:
+        color var(--transition-fast),
+        transform var(--transition-fast);
+    }
+
+    .modal-close:hover {
+      color: var(--accent-strong);
+      transform: scale(1.05);
+    }
+
+    /* ==========================
+           VEÍCULOS – ESTILOS
+           ========================== */
+
+    /* contêiner do ícone Leaflet */
+    .vehicle-marker {
+      width: 40px;
+      height: 40px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    /* elipse atrás do emoji */
+    .vehicle-emoji-wrapper {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      width: 36px;
+      /* um pouco menor que o iconSize total */
+      height: 36px;
+      border-radius: 50%;
+      background-color: #dedee0;
+      border: 3px solid var(--vehicle-color, #22c55e);
+      box-shadow: 0 0 6px rgba(0, 0, 0, 0.35);
+    }
+
+    /*
+      .vehicle-pin {
+        width: 18px;
+        height: 18px;
+        border-radius: 50% 50% 50% 0;
+        transform: rotate(-45deg);
+        position: relative;
+        display: block;
+        background: var(--vehicle-color, #22c55e);
+        box-shadow:
+          0 0 0 2px rgba(15, 23, 42, 0.9),
+          0 8px 16px rgba(15, 23, 42, 0.9);
+        transition: all 0.2s ease-out;
+      }*/
+    /* emoji em si */
+    .vehicle-emoji {
+      font-size: 20px;
+      /* aumentei o tamanho do emoji */
+      line-height: 1;
+      margin-top: -10px;
+    }
+
+    .vehicle-label {
+      margin-top: 2px;
+      padding: 1px 4px;
+      border-radius: 3px;
+      background: rgba(15, 23, 42, 0.85);
+      color: #e5e7eb;
+      font-size: 0.65rem;
+      white-space: nowrap;
+      max-width: 120px;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .vehicle-pin::after {
+      content: "";
+      position: absolute;
+      top: 45%;
+      left: 45%;
+      width: 32%;
+      height: 32%;
+      background: radial-gradient(circle at 50% 35%,
+          #f9fafb 0,
+          #e5e7eb 55%,
+          #93c5fd 100%);
+      border-radius: 50%;
+      transform: rotate(45deg);
+      box-shadow:
+        inset 0 0 0 1px rgba(15, 23, 42, 0.4),
+        0 0 10px rgba(56, 189, 248, 0.8);
+    }
+
+    .vehicle-marker.moving .vehicle-pin {
+      box-shadow:
+        0 0 0 3px rgba(45, 212, 191, 0.7),
+        0 0 16px rgba(45, 212, 191, 0.9),
+        0 16px 24px rgba(0, 0, 0, 0.9);
+    }
+
+    .vehicle-marker.moving .vehicle-emoji-wrapper {
+      border-color: #22c55e;
+      /* verde */
+    }
+
+    .vehicle-marker.stopped .vehicle-emoji-wrapper {
+      border-color: #f97373;
+      /* vermelho */
+    }
+
+    .vehicle-marker.stopped .vehicle-pin {
+      background: #f97373;
+    }
+
+    .vehicle-label {
+      margin-top: 4px;
+      padding: 4px 10px;
+      border-radius: 999px;
+      background: #0f172a;
+      /* Fundo escuro, como na imagem */
+      color: #e5e7eb;
+      /* Cor do texto clara, para contraste */
+      font-size: 0.85rem;
+      font-weight: 600;
+      line-height: 1.2;
+      white-space: normal;
+      /* PERMITE QUEBRA DE LINHA */
+      max-width: 220px;
+      /* Largura máxima, ajuste se precisar de mais */
+      text-align: center;
+      word-break: break-word;
+      /* Quebra palavras longas se necessário */
+      box-shadow: 0 2px 4px rgba(0, 0, 0, 0.45);
+    }
+
+    .vehicle-popup-title {
+      font-weight: 700;
+      font-size: 0.9rem;
+      color: #333;
+    }
+
+    .vehicle-popup-status {
+      font-size: 0.8rem;
+      margin-top: 4px;
+    }
+
+    .vehicle-popup-status span {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      padding: 1px 6px;
+      border-radius: 999px;
+      border: 1px solid rgba(148, 163, 184, 0.5);
+      font-size: 0.7rem;
+    }
+
+    .vehicle-popup-status .moving {
+      border-color: #22c55e;
+      color: #bbf7d0;
+    }
+
+    .vehicle-popup-status .stopped {
+      border-color: #f97373;
+      color: #fecaca;
+    }
+
+    @media (max-width: 1024px) {
+      #app {
+        grid-template-columns: 1fr 300px;
+      }
+    }
+
+    @media (max-width: 820px) {
+      #app {
+        grid-template-columns: 1fr;
+        grid-template-rows: auto auto 1fr auto;
+      }
+
+      .sidebar {
+        grid-column: 1;
+        grid-row: 4;
+        max-height: 300px;
+        border-left: none;
+        border-top: 1px solid var(--border-soft);
+      }
+
+      .legend-bar {
+        grid-row: 2;
+      }
+
+      .map-area {
+        grid-row: 3;
+      }
+
+      .bottom-panel {
+        display: none;
+      }
+
+      .header-controls {
+        flex-direction: column;
+        align-items: flex-start;
+      }
+    }
+  </style>
+</head>
+
+<body>
+  <!-- [Redesign] Shell principal fullscreen com layout em grid -->
+  <div id="app">
+    <!-- [Redesign] Cabeçalho compacto com controles -->
+    <header>
+      <div class="header-left">
+        <h2>Mapa Interativo - Planejamento DESC</h2>
+        <p class="header-subtitle">
+          Visualização e seleção de OS por local, serviço e estratégia
+        </p>
+      </div>
+      <div class="header-controls">
+        <div class="header-buttons-center">
+          <button id="toggleClusterHeader" class="btn-toggle" disabled>
+            Clusters ativados
+          </button>
+          <button id="clearSelectionBtnHeader" type="button" disabled>
+            Limpar seleção
+          </button>
+          <button id="markRecordedBtnHeader" type="button" class="btn-primary-header" disabled>
+            Marcar como gravados
+          </button>
+        </div>
+<div class="csv-block">
+  <!-- Botão para carregar OS do Supabase -->
+  <button id="btnLoadSupabase" type="button" class="btn-header">
+    🔄 Carregar Serviços
+  </button>
+
+  <span id="fileStatus" class="file-status"></span>
+  <div id="fileError" class="error"></div>
+</div>
+      </div>
+
+      <button id="btnLogout" type="button" class="btn-header" style="margin-left: auto;">
+  🚪 Sair
+</button>
+    </header>
+
+    <div id="leafletWarning">
+      ⚠ Leaflet não carregou. Verifique sua conexão ou bloqueadores.
+    </div>
+
+    <!-- [NOVO] Barra de legenda horizontal acima do mapa -->
+    <div class="legend-bar" id="legendBar">
+      <div class="legend-bar-title">Legenda de Serviços</div>
+      <div class="legend-container" id="legendContainer"></div>
+    </div>
+
+    <!-- [Redesign] Área do mapa (esquerda, ocupa todo o espaço) -->
+    <div class="map-area">
+      <div id="map-wrapper">
+        <div id="map"></div>
+        <button id="toggleLayersControlBtn" class="layers-toggle-icon" title="Mostrar/Ocultar camadas"
+          aria-label="Mostrar/Ocultar camadas">
+          ☰
+        </button>
+        <div id="mapOverlay" class="visible"></div>
+      </div>
+    </div>
+
+    <!-- [Redesign] Sidebar direita - filtros e controles empilhados -->
+    <aside class="sidebar">
+      <!-- Seção: Filtros -->
+      <div class="sidebar-section">
+        <div class="sidebar-section-title">Filtros</div>
+
+        <div class="control-group">
+          <label for="localFilter">Código do Local</label>
+          <input id="localFilter" type="text" placeholder="Ex.: 129, 5" disabled />
+        </div>
+
+        <div class="control-group">
+          <label for="tipoFilter">Código do Serviço</label>
+          <input id="tipoFilter" type="text" placeholder="Ex.: 3, 4" disabled />
+        </div>
+
+        <div class="control-group">
+          <label for="estrategiaFilter">Estratégia</label>
+          <select id="estrategiaFilter" multiple size="10" disabled></select>
+        </div>
+
+        <div class="control-group">
+          <label>Veículo Tipo Serviço</label>
+          <div id="tipVeicFilter"></div>
+        </div>
+
+        <button id="resetFilters" class="btn-secondary" disabled>
+          Limpar filtros
+        </button>
+      </div>
+
+      <!-- Seção: Resumo por serviço -->
+      <div class="sidebar-section selection-summary-table">
+        <h3>Seleção por Serviço</h3>
+        <table>
+          <thead>
+            <tr>
+              <th>CODSERV</th>
+              <th>Qtd</th>
+            </tr>
+          </thead>
+          <tbody id="summaryTableBody">
+            <tr>
+              <td colspan="2" style="text-align: center; color: #6b7280">
+                Nenhum item selecionado
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <!-- Seção: Itens Selecionados -->
+      <div class="sidebar-section">
+        <div class="sidebar-section-title">Itens Selecionados</div>
+        <span class="badge-count">Selecionados: <strong id="selectionCount">0</strong></span>
+        <div id="selectionList"><em>Nenhum ponto selecionado.</em></div>
+      </div>
+    </aside>
+
+    <!-- [Redesign] Painel inferior - informações adicionais (oculto em mobile) -->
+    <div class="bottom-panel">
+      <div class="bottom-panel-header">
+        <span style="font-size: 0.75rem; color: var(--text-soft)">
+          💡 Dica: Clique nos marcadores ou desenhe um retângulo para
+          selecionar múltiplos pontos
+        </span>
+      </div>
+    </div>
+
+    <!-- [Redesign] Modal de confirmação de gravação -->
+    <div id="recordModal" class="modal-overlay" aria-hidden="true">
+      <div class="modal" role="dialog" aria-modal="true" aria-labelledby="recordModalTitle">
+        <button type="button" class="modal-close" id="recordModalClose" aria-label="Fechar">
+          ×
+        </button>
+        <h3 id="recordModalTitle">Confirmar gravação</h3>
+        <p id="recordModalMessage"></p>
+        <div class="modal-actions">
+          <button type="button" id="recordCancelBtn" class="btn-secondary">
+            Cancelar
+          </button>
+          <button type="button" id="recordConfirmBtn" class="btn-primary">
+            Gravar
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+<script src="config.js"></script>
+  
+<!-- Supabase JS v2 -->
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+
+  <!-- JavaScript -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet.draw/1.0.4/leaflet.draw.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet.markercluster/1.5.3/leaflet.markercluster.js"></script>
+  
+  
+ 
+   <script>
+  // === SUPABASE CONFIG ===
+const SUPABASE_URL = window.ENV.SUPABASE_URL;
+const SUPABASE_ANON_KEY = window.ENV.SUPABASE_ANON_KEY;         // troque
+
+    // `supabase` já existe como global (vindo do script da CDN).
+// Pegamos a função createClient dela e criamos um cliente com outro nome:
+const { createClient } = supabase;
+const supabaseClient = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+  
+  // === PROTEÇÃO: Verificar se está logado ===
+window.addEventListener('DOMContentLoaded', () => {
+  const usuarioLogado = sessionStorage.getItem('usuario_logado');
+  
+  if (!usuarioLogado) {
+    // Se não estiver logado, redireciona para login
+    window.location.href = 'index.html';
+    return;
+  }
+
+  // Opcional: mostrar email do usuário logado no header
+  const user = JSON.parse(usuarioLogado);
+  console.log('Usuário logado:', user.email);
+});
+
+   
+    let serviceOverlayLayers = {}; // CODSERV -> layer (usado no controle de camadas)
+    let enabledServices = new Set(); // quais CODSERV estão ligados via controle
+
+    let map;
+    let osmLayer, humanitarianLayer, satelliteLayer, darkLayer;
+    let layersControl;
+    let drawnItems;
+    let clusterGroup;
+    let plainGroup;
+    let recordedClusterGroup;
+    let recordedPlainGroup;
+    let currentRecordedOverlay = null;
+    let clusterEnabled = true;
+    let recordedOverlayActive = false;
+    let layersControlVisible = true;
+
+    let dataPoints = [];
+    let allMarkers = [];
+    let selectionOrder = [];
+    let pendingRecordMarkers = [];
+
+    const recordedLayerName = "OS Gravadas";
+    const tipoColors = new Map();
+    const palette = [
+      "#2563eb",
+      "#16a34a",
+      "#f59e0b",
+      "#e11d48",
+      "#7c3aed",
+      "#059669",
+      "#f97316",
+      "#0f172a",
+      "#0ea5e9",
+      "#f43f5e",
+    ];
+
+
+    // Token em cache na página (para evitar buscar toda hora)
+    let fleetcoreToken = null;
+    let fleetcoreTokenExpiresAt = null; // timestamp em ms (opcional, se a API retorna expiração)
+
+    // Camada de veículos
+    let vehiclesLayer = null;
+    // Dados de veículos
+    let vehiclesData = [];
+
+    // Verifica se já temos token válido (simples; ajuste se tiver expiração exata)
+    function hasValidToken() {
+      if (!fleetcoreToken) return false;
+      if (!fleetcoreTokenExpiresAt) return true; // se não controlo expiração, considero válido
+      const now = Date.now();
+      return now < fleetcoreTokenExpiresAt;
+    }
+
+
+    // Define quando um veículo é considerado "em uso"
+    function isVehicleInUse(v) {
+      const state = (v.v_state || v.state || "").toLowerCase();
+      const speed = Number(v.speed || v.vSpeed || 0);
+      // exemplo: running ou moving, OU velocidade > 0
+      return (
+        state === "running" ||
+        state === "moving" ||
+        state === "driving"
+        //|| speed > 0
+      );
+    }
+
+    // Ícone para o veículo
+    function createVehicleIcon(vehicle) {
+      const state = (vehicle.v_state || vehicle.state || "").toLowerCase();
+      const speed = Number(vehicle.speed || vehicle.vSpeed || 0);
+
+      const inUse =
+        state === "running" ||
+        state === "moving" ||
+        state === "driving"
+        //|| speed > 0
+
+        ;
+      const iconType = (vehicle.icon || "").toLowerCase();
+
+      // Emojis conforme tipo + uso
+      let emoji;
+      if (iconType === "motorcycle") {
+        emoji = "🏍️";
+      } else {
+        emoji = inUse ? "🚙" : "🚗";
+      }
+
+      // Cores da elipse
+      let baseColor;
+      if (iconType === "motorcycle") {
+        baseColor = inUse ? "#22c55e" : "#f97373"; // moto: verde / vermelho
+      } else {
+        baseColor = inUse ? "#22c55e" : "#f97373"; // carro: verde / vermelho
+      }
+
+      return L.divIcon({
+        className: "vehicle-marker",
+        html: `
+            <div class="vehicle-emoji-wrapper" style="--vehicle-color:${baseColor};">
+                <span class="vehicle-emoji">${emoji}</span>
+            </div>
+        `,
+        // tamanho total do ícone em pixels
+        iconSize: [40, 40],
+        // ancora exatamente no centro do ícone
+        iconAnchor: [20, 20],
+        // popup abre um pouco acima do centro
+        popupAnchor: [0, -22],
+      });
+    }
+    // Popup do veículo
+    function buildVehiclePopup(vehicle) {
+      const inUse = isVehicleInUse(vehicle);
+      const statusClass = inUse ? "moving" : "stopped";
+
+      const name =
+        vehicle.alias || vehicle.licensePlate || vehicle.name || "Veículo";
+
+      const plate = vehicle.licensePlate || vehicle.plate || "-";
+      const speedVal =
+        vehicle.speed != null || vehicle.vSpeed != null
+          ? (vehicle.speed ?? vehicle.vSpeed)
+          : null;
+      const speed = speedVal !== null ? `${speedVal} km/h` : "N/D";
+      const state = vehicle.v_state || vehicle.state || "N/D";
+      const lastUpdate =
+        vehicle.gpsDateTime ||
+        vehicle.rowReferenceTime ||
+        vehicle.lastUpdate ||
+        vehicle.lastPositionTime ||
+        vehicle.gpsTime ||
+        "N/D";
+
+      const driver = vehicle.driver || vehicle.driverName || "-";
+
+      return `
+        <div>
+            <div class="vehicle-popup-title">${name}</div>
+            <div style="font-size:0.8rem;margin-top:4px;">
+                <strong>Placa:</strong> ${plate}<br/>
+                <strong>Condutor:</strong> ${driver}<br/>
+                <strong>Velocidade:</strong> ${speed}<br/>
+                <strong>Estado:</strong> ${state}<br/>
+                <strong>Última posição:</strong> ${lastUpdate}
+            </div>
+            <div class="vehicle-popup-status">
+                <span class="${statusClass}">
+                    ${inUse ? "🟢 Em uso" : "🔴 Parado"}
+                </span>
+            </div>
+        </div>
+    `;
+    }
+
+    // Constrói camada Leaflet com os veículos filtrados "in use"
+    function buildVehiclesLayer() {
+      if (!map) return;
+
+      if (vehiclesLayer) {
+        map.removeLayer(vehiclesLayer);
+        if (layersControl) {
+          layersControl.removeLayer(vehiclesLayer);
+        }
+      }
+
+      vehiclesLayer = L.layerGroup();
+
+      vehiclesData.forEach((v) => {
+        const lat = Number(v.latitude ?? v.lat ?? v.Latitude);
+        const lng = Number(v.longitude ?? v.lng ?? v.lon ?? v.Longitude);
+
+        if (isNaN(lat) || isNaN(lng)) return;
+
+        const marker = L.marker([lat, lng], {
+          icon: createVehicleIcon(v),
+        });
+
+        marker.bindPopup(buildVehiclePopup(v));
+        vehiclesLayer.addLayer(marker);
+      });
+
+      vehiclesLayer.addTo(map);
+      if (layersControl) {
+        layersControl.addOverlay(vehiclesLayer, "🚗 Veículos da Frota");
+      }
+
+      tryFitBoundsWithVehicles();
+    }
+
+    // Ajusta mapa considerando OS + veículos
+    function tryFitBoundsWithVehicles() {
+      if (!map) return;
+
+      const latLngs = [];
+
+      allMarkers.forEach((obj) => {
+        if (obj.visible) {
+          latLngs.push(obj.marker.getLatLng());
+        }
+      });
+
+      if (vehiclesLayer) {
+        vehiclesLayer.eachLayer((layer) => {
+          if (typeof layer.getLatLng === "function") {
+            latLngs.push(layer.getLatLng());
+          }
+        });
+      }
+
+      if (!latLngs.length) return;
+
+      const bounds = L.latLngBounds(latLngs);
+      if (bounds.isValid()) {
+        map.fitBounds(bounds, { padding: [40, 40] });
+      }
+    }
+
+    // Fluxo do botão "Carregar Veículos"
+    async function handleLoadVehiclesClick() {
+      if (!map) return;
+
+      const btn = document.getElementById("loadVehiclesBtn");
+      if (!btn) return;
+
+      const originalText = btn.textContent;
+      btn.disabled = true;
+      btn.textContent = "Carregando veículos...";
+
+      try {
+        const allVehicles = await fetchVehiclesFromApi();
+        // mantém apenas veiculos em uso
+        //vehiclesData = allVehicles.filter(v => isVehicleInUse(v));
+
+        vehiclesData = allVehicles;
+        buildVehiclesLayer();
+        btn.textContent = `Veículos carregados (${vehiclesData.length})`;
+      } catch (err) {
+        console.error(err);
+        alert("Erro ao carregar veículos. Veja o console para detalhes.");
+        btn.textContent = originalText;
+      } finally {
+        btn.disabled = false;
+      }
+    }
+
+    // ==========================
+    // RESTANTE DO CÓDIGO ORIGINAL
+    // ==========================
+
+    function getFilterValues(id) {
+      const raw = document.getElementById(id)?.value ?? "";
+      return raw
+        .split(",")
+        .map((item) => item.trim())
+        .filter((item) => item.length > 0);
+    }
+
+    function normalizeHeader(str) {
+      return str
+        .replace(/\uFEFF/g, "")
+        .replace(/"/g, "")
+        .trim()
+        .toUpperCase();
+    }
+
+    function initMap() {
+      if (typeof L === "undefined") {
+        document.getElementById("leafletWarning").style.display = "block";
+        console.error("Leaflet não carregou.");
+        return;
+      }
+      document.getElementById("leafletWarning").style.display = "none";
+
+      map = L.map("map", { zoomControl: true }).setView([-7, -36], 6);
+
+      osmLayer = L.tileLayer(
+        "https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png",
+        {
+          maxZoom: 19,
+          attribution: "© OpenStreetMap contributors",
+        },
+      );
+      humanitarianLayer = L.tileLayer(
+        "https://{s}.tile.openstreetmap.fr/hot/{z}/{x}/{y}.png",
+        {
+          maxZoom: 19,
+          attribution: "© OpenStreetMap, Tiles courtesy of HOT",
+        },
+      );
+      satelliteLayer = L.tileLayer(
+        "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}",
+        {
+          maxZoom: 19,
+          attribution: "Tiles © Esri",
+        },
+      );
+      darkLayer = L.tileLayer(
+        "https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png",
+        {
+          maxZoom: 19,
+          attribution: "© CartoDB",
+        },
+      );
+      osmLayer.addTo(map);
+
+      layersControl = L.control.layers(
+        {
+          "Mapa de Ruas (OSM)": osmLayer,
+          "Mapa Humanitário (HOT)": humanitarianLayer,
+          "Satélite (Esri)": satelliteLayer,
+          "Mapa Escuro (Carto)": darkLayer,
+        },
+        {},
+        { position: "topright", collapsed: false },
+      );
+      layersControlVisible = false;
+
+      drawnItems = new L.FeatureGroup();
+      map.addLayer(drawnItems);
+
+      const drawControl = new L.Control.Draw({
+        draw: {
+          polygon: false,
+          polyline: false,
+          circle: false,
+          circlemarker: false,
+          marker: false,
+          rectangle: {
+            shapeOptions: {
+              weight: 2,
+              color: "#f97316",
+            },
+          },
+        },
+        edit: {
+          featureGroup: drawnItems,
+          edit: false,
+          remove: true,
+        },
+      });
+      map.addControl(drawControl);
+
+      map.on(L.Draw.Event.CREATED, (evt) => {
+        handleRectangleSelection(evt.layer.getBounds());
+      });
+
+      map.on("overlayadd", (e) => {
+        for (const [tipo, layer] of Object.entries(serviceOverlayLayers)) {
+          if (layer === e.layer) {
+            enabledServices.add(tipo);
+            applyFilters();
+            break;
+          }
+        }
+      });
+
+      map.on("overlayremove", (e) => {
+        for (const [tipo, layer] of Object.entries(serviceOverlayLayers)) {
+          if (layer === e.layer) {
+            enabledServices.delete(tipo);
+            applyFilters();
+            break;
+          }
+        }
+      });
+    }
+
+
+
+// === CARREGAR OS DO SUPABASE (tabela mov_despacho) ===
+    async function loadOsFromSupabase() {
+      const statusEl = document.getElementById("fileStatus");
+      const errorEl = document.getElementById("fileError");
+      if (errorEl) errorEl.textContent = "";
+
+      try {
+        if (statusEl) statusEl.textContent = "Carregando OS do Supabase...";
+
+        const { data, error } = await supabaseClient
+          .from("mov_despacho")
+          .select("*");
+
+        if (error) {
+          console.error("Erro Supabase:", error);
+          throw error;
+        }
+
+        if (!data || !data.length) {
+          throw new Error("Nenhum registro retornado da tabela mov_despacho.");
+        }
+
+        // Mapeia os registros do Supabase para o formato esperado em dataPoints
+        dataPoints = data
+          .map((row) => {
+            const numcdc = String(row.NUMCDC ?? "").trim();
+            const codlcd = String(row.CODLCD ?? "").trim();
+            const codserv = String(row.CODSERV ?? "").trim();
+            const dscsvc = String(row.DSCSVC ?? "").trim();
+            const numos = String(row.NUMOS ?? "").trim();
+
+            // Campos de coordenadas (vêm como text na tabela)
+            const latRaw = row.LAT_SILCO;
+            const lngRaw = row.LONG_SILCO;
+
+            const lat = parseFloat(String(latRaw ?? "").replace(",", "."));
+            const lng = parseFloat(String(lngRaw ?? "").replace(",", "."));
+
+            if (!numcdc || !codlcd || !numos || isNaN(lat) || isNaN(lng)) {
+              // descarta registros inválidos
+              return null;
+            }
+
+            const key = `${numcdc}__${numos}`;
+
+            return {
+              key,
+              numcdc,
+              numos,
+              local: codlcd,                        // CODLCD
+              tipo: codserv,                        // CODSERV
+              dscsvc,                               // DSCSVC
+              estrategia: String(row.ESTRATEGIA ?? "").trim(),
+              tipVeic: String(row.TIP_VEIC ?? "").trim(),
+              // extras que você pode usar depois em popup/tabela:
+              servico: String(row.SERVICO ?? "").trim(),
+              dataPrev: String(row.DATAPREV ?? "").trim(),
+              codEstrategia: String(row.COD_ESTRATEGIA ?? "").trim(),
+              idtundPrz: String(row.IDTUND_PRZ ?? "").trim(),
+              eusd: String(row.EUSD ?? "").trim(),
+              compensacao: String(row.COMPENSACAO ?? "").trim(),
+              tipoCorte: String(row.TIPO_CORTE ?? "").trim(),
+              nome: `${numcdc} - OS ${numos}`,
+              lat,
+              lng,
+            };
+          })
+          .filter((p) => p !== null);
+
+        if (!dataPoints.length) {
+          throw new Error("Nenhum registro válido encontrado em mov_despacho.");
+        }
+
+        if (statusEl) {
+          statusEl.textContent = `${dataPoints.length} pontos carregados.`;
+        }
+
+        buildMapFromData();
+      } catch (err) {
+        console.error(err);
+        dataPoints = [];
+        clearMapLayers();
+        document.getElementById("legendBar").style.display = "none";
+        if (statusEl) statusEl.textContent = "Erro ao carregar dados.";
+        if (errorEl) errorEl.textContent = err.message;
+      }
+    }
+
+    // === CARREGAR FROTA DO SUPABASE ===
+async function loadFrotaFromSupabase() {
+  const statusEl = document.getElementById("fileStatus");
+  const errorEl = document.getElementById("fileError");
+  if (errorEl) errorEl.textContent = "";
+
+  try {
+    if (statusEl) statusEl.textContent = "Carregando frota...";
+
+    const { data, error } = await supabaseClient
+      .from("frota")
+      .select("*");
+
+    if (error) {
+      console.error("Erro Supabase (frota):", error);
+      throw error;
+    }
+
+    if (!data || !data.length) {
+      throw new Error("Nenhum registro retornado da tabela frota.");
+    }
+
+    // Mapeia os registros do Supabase para o formato de veículos
+    vehiclesData = data
+      .map((row) => {
+        const lat = parseFloat(String(row.latitude ?? row.lat ?? "").replace(",", "."));
+        const lng = parseFloat(String(row.longitude ?? row.lng ?? "").replace(",", "."));
+
+        if (isNaN(lat) || isNaN(lng)) {
+          return null; // descarta registros sem coordenadas válidas
+        }
+
+        return {
+          alias: String(row.alias || row.nome || row.descricao || "Veículo"),
+          licensePlate: String(row.placa || row.license_plate || "-"),
+          latitude: lat,
+          longitude: lng,
+          v_state: String(row.estado || row.v_state || row.status || "stopped"),
+          speed: Number(row.velocidade || row.speed || 0),
+          icon: String(row.tipo_icone || row.icon || "car").toLowerCase(),
+          driver: String(row.condutor || row.driver || row.driverName || "-"),
+          gpsDateTime: String(row.data_gps || row.gpsDateTime || row.ultima_atualizacao || "N/D"),
+        };
+      })
+      .filter((v) => v !== null);
+
+    if (!vehiclesData.length) {
+      throw new Error("Nenhum veículo válido encontrado em frota.");
+    }
+
+    if (statusEl) {
+      statusEl.textContent = `${vehiclesData.length} veículos carregados.`;
+    }
+
+    buildVehiclesLayer();
+  } catch (err) {
+    console.error(err);
+    vehiclesData = [];
+    if (statusEl) statusEl.textContent = "Erro ao carregar frota.";
+    if (errorEl) errorEl.textContent = err.message;
+  }
+}
+
+
+
+
+    function buildMapFromData() {
+      clearMapLayers();
+      clearSelection();
+      tipoColors.clear();
+
+      const estrategias = [
+        ...new Set(dataPoints.map((p) => p.estrategia).filter(Boolean)),
+      ].sort();
+      const estrSelect = document.getElementById("estrategiaFilter");
+      estrSelect.innerHTML = estrategias
+        .map((v) => `<option value="${v}">${v}</option>`)
+        .join("");
+      estrSelect.disabled = estrategias.length === 0;
+
+      const tipVeicVals = [
+        ...new Set(dataPoints.map((p) => p.tipVeic).filter(Boolean)),
+      ].sort();
+      const tipVeicDiv = document.getElementById("tipVeicFilter");
+      tipVeicDiv.innerHTML = tipVeicVals
+        .map(
+          (v) => `
+    <label style="display:inline-flex;align-items:center;gap:4px;">
+        <input type="checkbox" value="${v}" disabled /> ${v}
+    </label>
+`,
+        )
+        .join("");
+      tipVeicDiv
+        .querySelectorAll("input[type=checkbox]")
+        .forEach((cb) => (cb.disabled = false));
+
+      allMarkers = [];
+
+      Object.values(serviceOverlayLayers).forEach((layer) => {
+        if (layersControl && layer) {
+          layersControl.removeLayer(layer);
+        }
+        if (map && map.hasLayer(layer)) {
+          map.removeLayer(layer);
+        }
+      });
+      serviceOverlayLayers = {};
+      enabledServices.clear();
+
+      const tipos = [...new Set(dataPoints.map((p) => p.tipo))].sort(
+        (a, b) => Number(a) - Number(b),
+      );
+
+      tipos.forEach((tipo, idx) => {
+        const color = palette[idx % palette.length];
+        tipoColors.set(tipo, color);
+      });
+
+      updateLegend();
+
+      clusterGroup = L.markerClusterGroup({
+        spiderfyOnMaxZoom: true,
+        showCoverageOnHover: false,
+        disableClusteringAtZoom: 15,
+        chunkedLoading: true,
+      });
+      plainGroup = L.layerGroup();
+
+      dataPoints.forEach((point) => {
+        const isLightning = point.tipo === "5" || point.tipo === "198";
+        const marker = L.marker([point.lat, point.lng], {
+          icon: createMarkerIcon(
+            tipoColors.get(point.tipo) || "#2563eb",
+            false,
+            isLightning,
+            false,
+          ),
+        });
+
+        marker.bindPopup(
+          `<strong>${point.nome}</strong><br>` +
+          `Local: ${point.local}<br>` +
+          `Servico: ${point.tipo} - ${point.dscsvc}`,
+        );
+
+        const markerObj = {
+          marker,
+          data: point,
+          visible: false,
+          selected: false,
+          recorded: false,
+        };
+
+        marker.on("click", (evt) => {
+          evt.originalEvent?.preventDefault();
+          toggleMarkerSelection(markerObj);
+        });
+
+        allMarkers.push(markerObj);
+      });
+
+      applyFilters();
+      fitMapToData();
+      enableControls();
+    }
+
+    function createMarkerIcon(
+      color,
+      selected,
+      isLightning = false,
+      recorded = false,
+    ) {
+      if (isLightning) {
+        const recordedClass = recorded ? " recorded" : "";
+        return L.divIcon({
+          className: `custom-marker lightning${selected ? " selected" : ""}${recordedClass}`,
+          html: `<span class="marker-pin"></span>`,
+          iconSize: [20, 20],
+          iconAnchor: [10, 10],
+          popupAnchor: [0, -12],
+        });
+      }
+      return L.divIcon({
+        className: `custom-marker${selected ? " selected" : ""}`,
+        html: `<span class="marker-pin" style="--marker-color: ${color}"></span>`,
+        iconSize: [26, 34],
+        iconAnchor: [12, 31],
+        popupAnchor: [0, -28],
+      });
+    }
+
+    function refreshMarkersLayer() {
+      if (!map) return;
+      if (clusterGroup) clusterGroup.clearLayers();
+      if (plainGroup) plainGroup.clearLayers();
+
+      const mapOverlay = document.getElementById("mapOverlay");
+      if (mapOverlay) {
+        mapOverlay.classList.remove("visible");
+      }
+
+      const activeGroup = clusterEnabled ? clusterGroup : plainGroup;
+      const inactiveGroup = clusterEnabled ? plainGroup : clusterGroup;
+
+      if (inactiveGroup && map.hasLayer(inactiveGroup)) {
+        map.removeLayer(inactiveGroup);
+      }
+
+      allMarkers.forEach((obj) => {
+        if (obj.visible) {
+          activeGroup.addLayer(obj.marker);
+        }
+      });
+
+      if (!map.hasLayer(activeGroup)) {
+        map.addLayer(activeGroup);
+      }
+    }
+
+    function clearMapLayers() {
+      if (!map) return;
+      if (clusterGroup && map.hasLayer(clusterGroup))
+        map.removeLayer(clusterGroup);
+      if (plainGroup && map.hasLayer(plainGroup)) map.removeLayer(plainGroup);
+      if (clusterGroup) clusterGroup.clearLayers();
+      if (plainGroup) plainGroup.clearLayers();
+      drawnItems?.clearLayers();
+    }
+
+    function fitMapToData() {
+      if (!allMarkers.length) return;
+
+      const visibleLatLngs = allMarkers
+        .filter((obj) => obj.visible)
+        .map((obj) => obj.marker.getLatLng());
+
+      if (!visibleLatLngs.length) return;
+
+      const bounds = L.latLngBounds(visibleLatLngs);
+      if (bounds.isValid()) {
+        map.fitBounds(bounds, { padding: [40, 40] });
+      }
+    }
+
+    function updateLegend() {
+      const legendBar = document.getElementById("legendBar");
+      const legendContainer = document.getElementById("legendContainer");
+
+      const visibleTipos = new Set();
+      allMarkers.forEach((obj) => {
+        if (obj.visible) {
+          visibleTipos.add(obj.data.tipo);
+        }
+      });
+
+      if (visibleTipos.size === 0) {
+        legendBar.style.display = "none";
+        if (legendContainer) legendContainer.innerHTML = "";
+        return;
+      }
+
+      const sortedTipos = Array.from(visibleTipos).sort(
+        (a, b) => Number(a) - Number(b),
+      );
+
+      legendBar.style.display = "block";
+
+      const items = sortedTipos.map((tipo) => {
+        const color = tipoColors.get(tipo) || "#999";
+        const isLightning = tipo === "5" || tipo === "198";
+
+        let symbolHtml = `<span class="legend-swatch" style="background:${color}"></span>`;
+        if (isLightning) {
+          symbolHtml = `<span style="display:inline-flex;align-items:center;justify-content:center;width:16px;height:16px;background:linear-gradient(135deg, #f59e0b, #d97706);border-radius:3px;margin-right:4px;font-size:10px;color:#fff;">✂️</span>`;
+        }
+
+        return `
+                <span class="legend-item">
+                    ${symbolHtml}
+                    ${tipo}
+                </span>
+                `;
+      });
+
+      if (legendContainer) {
+        legendContainer.innerHTML = items.join("");
+      }
+    }
+
+    function applyFilters() {
+      const localValues = getFilterValues("localFilter");
+      const tipoValues = getFilterValues("tipoFilter");
+
+      const estrSelect = document.getElementById("estrategiaFilter");
+      const estrategiaVals = [...estrSelect.selectedOptions].map(
+        (o) => o.value,
+      );
+      const tipVeicVals = Array.from(
+        document.querySelectorAll(
+          "#tipVeicFilter input[type=checkbox]:checked",
+        ),
+      ).map((cb) => cb.value);
+
+      const hasLocal = localValues.length > 0;
+      const hasTipo = tipoValues.length > 0;
+      const hasEstr = estrategiaVals.length > 0;
+      const hasVeic = tipVeicVals.length > 0;
+
+      allMarkers.forEach((obj) => {
+        const matchesLocal = hasLocal
+          ? localValues.includes(obj.data.local)
+          : true;
+        const matchesTipo = hasTipo
+          ? tipoValues.includes(obj.data.tipo)
+          : true;
+        const matchesEstr = hasEstr
+          ? estrategiaVals.includes(obj.data.estrategia)
+          : true;
+        const matchesVeic = hasVeic
+          ? tipVeicVals.includes(obj.data.tipVeic)
+          : true;
+
+        const matchesLayer = enabledServices.size
+          ? enabledServices.has(obj.data.tipo)
+          : true;
+
+        const visibleNow =
+          matchesLocal &&
+          matchesTipo &&
+          matchesEstr &&
+          matchesVeic &&
+          matchesLayer;
+
+        if (obj.visible !== visibleNow) obj.visible = visibleNow;
+        if (!visibleNow && obj.selected) deselectMarker(obj, false);
+
+        updateMarkerIcon(obj);
+      });
+
+      refreshMarkersLayer();
+      updateSelectionInfo();
+      fitMapToData();
+    }
+
+    function updateMarkerIcon(obj) {
+      const baseColor = obj.recorded
+        ? "#4b5563"
+        : tipoColors.get(obj.data.tipo) || "#2563eb";
+
+      const isLightning = obj.data.tipo === "5" || obj.data.tipo === "198";
+      obj.marker.setIcon(
+        createMarkerIcon(baseColor, obj.selected, isLightning, obj.recorded),
+      );
+    }
+
+    function handleRectangleSelection(bounds) {
+      let changed = false;
+      allMarkers.forEach((obj) => {
+        if (!obj.visible) return;
+        if (obj.recorded) return;
+        if (!map.hasLayer(obj.marker)) return;
+        if (!obj.marker._icon) return;
+        if (bounds.contains(obj.marker.getLatLng())) {
+          if (!obj.selected) {
+            selectMarker(obj, false);
+            changed = true;
+          }
+        }
+      });
+      if (changed) {
+        updateSelectionInfo();
+      }
+    }
+
+    function selectMarker(obj, update = true) {
+      if (obj.selected) return;
+      if (obj.recorded) return;
+
+      obj.selected = true;
+      selectionOrder.push(obj);
+      updateMarkerIcon(obj);
+
+      const numos = obj.data.numos;
+      allMarkers.forEach((otherObj) => {
+        if (
+          otherObj !== obj &&
+          otherObj.data.numos === numos &&
+          otherObj.visible &&
+          !otherObj.selected &&
+          !otherObj.recorded
+        ) {
+          otherObj.selected = true;
+          selectionOrder.push(otherObj);
+          updateMarkerIcon(otherObj);
+        }
+      });
+
+      if (update) updateSelectionInfo();
+    }
+
+    function deselectMarker(obj, update = true) {
+      if (!obj.selected) return;
+      obj.selected = false;
+      selectionOrder = selectionOrder.filter((item) => item !== obj);
+      updateMarkerIcon(obj);
+      if (update) updateSelectionInfo();
+    }
+
+    function toggleMarkerSelection(obj) {
+      if (!obj.visible) return;
+      if (obj.recorded) return;
+
+      const numos = obj.data.numos;
+
+      if (obj.selected) {
+        allMarkers.forEach((otherObj) => {
+          if (otherObj.data.numos === numos && otherObj.selected) {
+            deselectMarker(otherObj, false);
+          }
+        });
+        updateSelectionInfo();
+      } else {
+        selectMarker(obj);
+      }
+    }
+
+    function updateSelectionInfo() {
+      selectionOrder = selectionOrder.filter((obj) => obj.selected);
+
+      const countEl = document.getElementById("selectionCount");
+      const listEl = document.getElementById("selectionList");
+      const clearBtnHeader = document.getElementById(
+        "clearSelectionBtnHeader",
+      );
+      const markRecordedBtn = document.getElementById("markRecordedBtn");
+      const markRecordedBtnHeader = document.getElementById(
+        "markRecordedBtnHeader",
+      );
+      const summaryTableBody = document.getElementById("summaryTableBody");
+
+      countEl.textContent = selectionOrder.length;
+      clearBtnHeader.disabled = selectionOrder.length === 0;
+
+      if (markRecordedBtn) {
+        markRecordedBtn.disabled = selectionOrder.length === 0;
+      }
+      if (markRecordedBtnHeader) {
+        markRecordedBtnHeader.disabled = selectionOrder.length === 0;
+      }
+
+      if (!selectionOrder.length) {
+        listEl.innerHTML = "<em>Nenhum ponto selecionado.</em>";
+        copySelectionToClipboard("");
+
+        if (summaryTableBody) {
+          summaryTableBody.innerHTML = `
+                <tr>
+                    <td colspan="2" style="text-align:center; color:#6b7280;">
+                    Nenhum item selecionado
+                    </td>
+                </tr>
+            `;
+        }
+        return;
+      }
+
+      const itemsHtml = selectionOrder
+        .map((obj) => {
+          const d = obj.data;
+          return `
+        <li class="selection-item">
+            <strong>${d.nome}</strong>
+            <span class="selection-meta">
+                <span>CODLCD ${d.local}</span>
+                <span>CODSERV ${d.tipo}</span>
+            </span>
+        </li>
+        `;
+        })
+        .join("");
+
+      listEl.innerHTML = `<ul>${itemsHtml}</ul>`;
+
+      const uniqueNumos = [
+        ...new Set(selectionOrder.map((obj) => obj.data.numos)),
+      ];
+      const numosList = uniqueNumos.join(",");
+      copySelectionToClipboard(`NUMOS IN (${numosList})`);
+
+      if (summaryTableBody) {
+        const counts = {};
+        const dscsvcMap = {};
+        let total = 0;
+
+        selectionOrder.forEach((obj) => {
+          const tipo = obj.data.tipo || "—";
+          const dscsvc = obj.data.dscsvc || "";
+          counts[tipo] = (counts[tipo] || 0) + 1;
+          dscsvcMap[tipo] = dscsvc;
+          total++;
+        });
+
+        const rows = Object.entries(counts)
+          .sort((a, b) => Number(a[0]) - Number(b[0]))
+          .map(
+            ([tipo, qtde]) => `
+                <tr>
+                    <td>${tipo} - ${dscsvcMap[tipo]}</td>
+                    <td><strong>${qtde}</strong></td>
+                </tr>
+            `,
+          );
+
+        rows.push(`
+            <tr style="font-weight:700; border-top:2px solid #e5e7eb;">
+                <td>TOTAL</td>
+                <td><strong>${total}</strong></td>
+            </tr>
+        `);
+
+        summaryTableBody.innerHTML = rows.join("");
+      }
+    }
+
+    function copySelectionToClipboard(text) {
+      if (!navigator.clipboard) {
+        console.warn("Clipboard API indisponível.");
+        return;
+      }
+      navigator.clipboard.writeText(text).catch((err) => {
+        console.warn("Não foi possível copiar para o clipboard:", err);
+      });
+    }
+
+    function clearSelection() {
+      allMarkers.forEach((obj) => {
+        if (obj.selected) {
+          obj.selected = false;
+          updateMarkerIcon(obj);
+        }
+      });
+      selectionOrder = [];
+      updateSelectionInfo();
+    }
+
+    function enableControls() {
+      [
+        "localFilter",
+        "tipoFilter",
+        "estrategiaFilter",
+        "resetFilters",
+        "clearSelectionBtnHeader",
+        "toggleClusterHeader",
+      ].forEach((id) => {
+        const el = document.getElementById(id);
+        if (el) el.disabled = false;
+      });
+
+      document
+        .querySelectorAll("#tipVeicFilter input[type=checkbox]")
+        .forEach((cb) => (cb.disabled = false));
+    }
+
+
+    function toggleClusterMode(forceState) {
+      if (!map) return;
+      if (typeof forceState === "boolean") {
+        clusterEnabled = forceState;
+      } else {
+        clusterEnabled = !clusterEnabled;
+      }
+      const btn = document.getElementById("toggleClusterHeader");
+      if (btn) {
+        btn.textContent = clusterEnabled
+          ? "Clusters ativados"
+          : "Clusters desativados";
+        btn.classList.toggle("off", !clusterEnabled);
+      }
+      refreshMarkersLayer();
+    }
+
+    function toggleLayersControl() {
+      if (!map || !layersControl) return;
+
+      if (layersControlVisible) {
+        map.removeControl(layersControl);
+        layersControlVisible = false;
+      } else {
+        layersControl.addTo(map);
+        layersControlVisible = true;
+      }
+    }
+
+    function markSelectionAsRecorded() {
+      if (!selectionOrder.length) return;
+      selectionOrder.forEach((obj) => {
+        obj.recorded = true;
+        obj.selected = false;
+        updateMarkerIcon(obj);
+      });
+      selectionOrder = [];
+      updateSelectionInfo();
+    }
+
+    document.addEventListener("DOMContentLoaded", () => {
+      initMap();
+
+      const loadVehiclesBtn = document.getElementById("loadVehiclesBtn");
+      if (loadVehiclesBtn) {
+        loadVehiclesBtn.addEventListener("click", () => {
+          loadFrotaFromSupabase();
+
+        });
+
+      }
+
+// Botão para carregar OS direto do Supabase (mov_despacho)
+      const btnLoadSupabase = document.getElementById("btnLoadSupabase");
+      if (btnLoadSupabase) {
+        btnLoadSupabase.addEventListener("click", () => {
+           loadOsFromSupabase();
+           loadFrotaFromSupabase();
+        });
+      }
+
+
+      document
+        .getElementById("localFilter")
+        .addEventListener("input", applyFilters);
+      document.getElementById("tipoFilter").addEventListener("input", () => {
+        applyFilters();
+        updateLegend();
+      });
+
+      document
+        .getElementById("resetFilters")
+        .addEventListener("click", () => {
+          document.getElementById("localFilter").value = "";
+          document.getElementById("tipoFilter").value = "";
+          document.getElementById("estrategiaFilter").selectedIndex = -1;
+          document
+            .querySelectorAll("#tipVeicFilter input[type=checkbox]")
+            .forEach((cb) => (cb.checked = false));
+          clearSelection();
+          applyFilters();
+          updateLegend();
+        });
+
+      document
+        .getElementById("toggleClusterHeader")
+        .addEventListener("click", () => {
+          toggleClusterMode();
+        });
+
+      document
+        .getElementById("toggleLayersControlBtn")
+        .addEventListener("click", () => {
+          toggleLayersControl();
+        });
+
+      document
+        .getElementById("clearSelectionBtnHeader")
+        .addEventListener("click", () => {
+          clearSelection();
+        });
+
+      document
+        .getElementById("estrategiaFilter")
+        .addEventListener("change", applyFilters);
+
+      document.querySelectorAll("#tipVeicFilter").forEach((div) => {
+        div.addEventListener("change", applyFilters);
+      });
+
+      const recordModal = document.getElementById("recordModal");
+      const recordModalMessage =
+        document.getElementById("recordModalMessage");
+      const recordModalClose = document.getElementById("recordModalClose");
+      const recordCancelBtn = document.getElementById("recordCancelBtn");
+      const recordConfirmBtn = document.getElementById("recordConfirmBtn");
+      const markRecordedBtn = document.getElementById("markRecordedBtn");
+      const markRecordedBtnHeader = document.getElementById(
+        "markRecordedBtnHeader",
+      );
+
+      function openRecordModal() {
+        if (!selectionOrder.length) return;
+        const itens = selectionOrder.map((obj) => obj.data.numos).join(", ");
+        recordModalMessage.textContent = `Os itens ${itens} serão marcados como gravados e não poderão mais ser selecionados. Deseja continuar?`;
+        recordModal.classList.add("active");
+        recordModal.setAttribute("aria-hidden", "false");
+      }
+
+      function closeRecordModal() {
+        recordModal.classList.remove("active");
+        recordModal.setAttribute("aria-hidden", "true");
+      }
+
+      if (markRecordedBtn) {
+        markRecordedBtn.addEventListener("click", openRecordModal);
+      }
+
+      if (markRecordedBtnHeader) {
+        markRecordedBtnHeader.addEventListener("click", openRecordModal);
+      }
+
+      recordModalClose.addEventListener("click", closeRecordModal);
+      recordCancelBtn.addEventListener("click", closeRecordModal);
+
+      recordConfirmBtn.addEventListener("click", () => {
+        markSelectionAsRecorded();
+        closeRecordModal();
+      });
+
+      recordModal.addEventListener("click", (e) => {
+        if (e.target === recordModal) {
+          closeRecordModal();
+        }
+      });
+
+      window.addEventListener("keydown", (e) => {
+        if (e.key === "Escape") {
+          closeRecordModal();
+        }
+      });
+
+
+      // Botão de logout
+const btnLogout = document.getElementById('btnLogout');
+if (btnLogout) {
+  btnLogout.addEventListener('click', () => {
+    sessionStorage.removeItem('usuario_logado');
+    window.location.href = 'index.html';
+  });
+}
+
+
+    });
+  </script>
+</body>
+
+</html>
