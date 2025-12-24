@@ -1433,6 +1433,8 @@
     </div>
   </div>
 
+<script src="config.js"></script>
+  
 <!-- Supabase JS v2 -->
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 
@@ -1445,8 +1447,8 @@
  
    <script>
   // === SUPABASE CONFIG ===
-    const SUPABASE_URL = "https://dmebdeuibcvzxyspjtbe.supabase.co"; // troque
-    const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRtZWJkZXVpYmN2enh5c3BqdGJlIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjYwMTQzMTAsImV4cCI6MjA4MTU5MDMxMH0.d5WBzpB2PufKZsyDHXp8Sj_PAHH3W1L4tSNtI52I9nU";          // troque
+const SUPABASE_URL = window.ENV.SUPABASE_URL;
+const SUPABASE_ANON_KEY = window.ENV.SUPABASE_ANON_KEY;         // troque
 
     // `supabase` já existe como global (vindo do script da CDN).
 // Pegamos a função createClient dela e criamos um cliente com outro nome:
