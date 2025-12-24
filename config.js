@@ -1,4 +1,8 @@
 window.ENV = {
   SUPABASE_URL: "https://dmebdeuibcvzxyspjtbe.supabase.co",
   SUPABASE_ANON_KEY: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRtZWJkZXVpYmN2enh5c3BqdGJlIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjYwMTQzMTAsImV4cCI6MjA4MTU5MDMxMH0.d5WBzpB2PufKZsyDHXp8Sj_PAHH3W1L4tSNtI52I9nU"
+<<<<<<< HEAD
 };
+=======
+};
+>>>>>>> 4703525fcfff435da5277c64d340f5626706e24f
