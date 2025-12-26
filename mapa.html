@@ -1861,6 +1861,9 @@ const { data, error, count } = await supabaseClient
   .select("*", { count: "exact" }) // não precisa do head:false
   .limit(5000);                    // aqui você sobe o limite
 
+console.log("Total de registros na tabela (count):", count);
+console.log("Registros retornados nesta chamada:", data.length);
+    
     if (error) {
       console.error("Erro Supabase:", error);
       throw error;
