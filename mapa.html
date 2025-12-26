@@ -1856,9 +1856,9 @@ async function loadOsFromSupabase() {
   try {
     if (statusEl) statusEl.textContent = "Carregando OS do Supabase...";
 
-    const { data, error } = await supabaseClient
-      .from("mov_despacho")
-      .select("*");
+const { data, error } = await supabaseClient
+  .from("mov_despacho")
+  .select("*", { count: "exact", head: false });
 
     if (error) {
       console.error("Erro Supabase:", error);
@@ -1889,33 +1889,35 @@ async function loadOsFromSupabase() {
         const lat = parseFloat(String(latRaw ?? "").replace(",", "."));
         const lng = parseFloat(String(lngRaw ?? "").replace(",", "."));
 
-        if (!numcdc || !codlcd || !numos || isNaN(lat) || isNaN(lng)) {
-          descartados++;
-          return null;
-        }
+if (isNaN(lat) || isNaN(lng)) {
+  descartados++;
+  return null;
+}
 
-        const key = `${numcdc}__${numos}`;
+const key = `${numcdc || 'CDC?'}__${numos || 'OS?'}`;
 
-        return {
-          key,
-          numcdc,
-          numos,
-          local: codlcd,
-          tipo: codserv,
-          dscsvc,
-          estrategia: String(row.ESTRATEGIA ?? "").trim(),
-          tipVeic: String(row.TIP_VEIC ?? "").trim(),
-          servico: String(row.SERVICO ?? "").trim(),
-          dataPrev: String(row.DATAPREV ?? "").trim(),
-          codEstrategia: String(row.COD_ESTRATEGIA ?? "").trim(),
-          idtundPrz: String(row.IDTUND_PRZ ?? "").trim(),
-          eusd: String(row.EUSD ?? "").trim(),
-          compensacao: String(row.COMPENSACAO ?? "").trim(),
-          tipoCorte: String(row.TIPO_CORTE ?? "").trim(),
-          nome: `${numcdc} - OS ${numos}`,
-          lat,
-          lng,
-        };
+return {
+  key,
+  numcdc,
+  numos,
+  local: codlcd,
+  tipo: codserv,
+  dscsvc,
+  estrategia: String(row.ESTRATEGIA ?? "").trim(),
+  tipVeic: String(row.TIP_VEIC ?? "").trim(),
+  servico: String(row.SERVICO ?? "").trim(),
+  dataPrev: String(row.DATAPREV ?? "").trim(),
+  codEstrategia: String(row.COD_ESTRATEGIA ?? "").trim(),
+  idtundPrz: String(row.IDTUND_PRZ ?? "").trim(),
+  eusd: String(row.EUSD ?? "").trim(),
+  compensacao: String(row.COMPENSACAO ?? "").trim(),
+  tipoCorte: String(row.TIPO_CORTE ?? "").trim(),
+  nome: numos
+    ? `${numcdc || 'CDC?'} - OS ${numos}`
+    : `Ponto sem NUMOS (${numcdc || 'CDC?'})`,
+  lat,
+  lng,
+};
       })
       .filter((p) => p !== null);
 
