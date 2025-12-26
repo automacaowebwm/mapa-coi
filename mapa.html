@@ -1845,7 +1845,46 @@ window.addEventListener('DOMContentLoaded', () => {
       });
     }
 
+// Busca todos os registros de mov_despacho em páginas de 1000
+async function fetchAllMovDespacho(maxRows = 10000, pageSize = 1000) {
+  let all = [];
+  let from = 0;
 
+  while (from < maxRows) {
+    const to = from + pageSize - 1;
+
+    console.log(`🔎 Buscando registros de ${from} a ${to}...`);
+
+    const { data, error } = await supabaseClient
+      .from("mov_despacho")
+      .select("*")
+      .range(from, to);
+
+    if (error) {
+      console.error("Erro Supabase na paginação:", error);
+      throw error;
+    }
+
+    if (!data || data.length === 0) {
+      console.log("✅ Sem mais páginas, parando a busca.");
+      break; // acabou
+    }
+
+    console.log(`📦 Página retornou ${data.length} registros.`);
+    all = all.concat(data);
+
+    // se voltou menos que pageSize, não tem mais páginas
+    if (data.length < pageSize) {
+      console.log("✅ Última página retornada (menos que pageSize).");
+      break;
+    }
+
+    from += pageSize;
+  }
+
+  console.log("📊 Total de registros concatenados:", all.length);
+  return all;
+}
 
 // === CARREGAR OS DO SUPABASE (tabela mov_despacho) ===
 async function loadOsFromSupabase() {
@@ -1856,18 +1895,14 @@ async function loadOsFromSupabase() {
   try {
     if (statusEl) statusEl.textContent = "Carregando OS do Supabase...";
 
-const { data, error, count } = await supabaseClient
-  .from("mov_despacho")
-  .select("*", { count: "exact" }) // não precisa do head:false
-  .limit(5000);                    // aqui você sobe o limite
+// Busca paginada para escapar do limite de 1000 por requisição
+const data = await fetchAllMovDespacho(10000, 1000); // até 10.000, em páginas de 1000
 
-console.log("Total de registros na tabela (count):", count);
-console.log("Registros retornados nesta chamada:", data.length);
-    
-    if (error) {
-      console.error("Erro Supabase:", error);
-      throw error;
-    }
+console.log("✅ Total de registros recebidos do Supabase (todas as páginas):", data.length);
+
+if (!data || !data.length) {
+  throw new Error("Nenhum registro retornado da tabela mov_despacho.");
+}
 
     console.log("✅ Total de registros recebidos do Supabase:", data.length);
     console.log("📋 Exemplo de 3 registros:", data.slice(0, 3));
