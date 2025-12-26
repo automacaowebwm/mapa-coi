@@ -1848,92 +1848,103 @@ window.addEventListener('DOMContentLoaded', () => {
 
 
 // === CARREGAR OS DO SUPABASE (tabela mov_despacho) ===
-    async function loadOsFromSupabase() {
-      const statusEl = document.getElementById("fileStatus");
-      const errorEl = document.getElementById("fileError");
-      if (errorEl) errorEl.textContent = "";
+async function loadOsFromSupabase() {
+  const statusEl = document.getElementById("fileStatus");
+  const errorEl = document.getElementById("fileError");
+  if (errorEl) errorEl.textContent = "";
 
-      try {
-        if (statusEl) statusEl.textContent = "Carregando OS do Supabase...";
+  try {
+    if (statusEl) statusEl.textContent = "Carregando OS do Supabase...";
 
-        const { data, error } = await supabaseClient
-          .from("mov_despacho")
-          .select("*");
+    const { data, error } = await supabaseClient
+      .from("mov_despacho")
+      .select("*");
 
-        if (error) {
-          console.error("Erro Supabase:", error);
-          throw error;
-        }
-
-        if (!data || !data.length) {
-          throw new Error("Nenhum registro retornado da tabela mov_despacho.");
-        }
-
-        // Mapeia os registros do Supabase para o formato esperado em dataPoints
-        dataPoints = data
-          .map((row) => {
-            const numcdc = String(row.NUMCDC ?? "").trim();
-            const codlcd = String(row.CODLCD ?? "").trim();
-            const codserv = String(row.CODSERV ?? "").trim();
-            const dscsvc = String(row.DSCSVC ?? "").trim();
-            const numos = String(row.NUMOS ?? "").trim();
-
-            // Campos de coordenadas (vêm como text na tabela)
-            const latRaw = row.LAT_SILCO;
-            const lngRaw = row.LONG_SILCO;
-
-            const lat = parseFloat(String(latRaw ?? "").replace(",", "."));
-            const lng = parseFloat(String(lngRaw ?? "").replace(",", "."));
-
-            if (!numcdc || !codlcd || !numos || isNaN(lat) || isNaN(lng)) {
-              // descarta registros inválidos
-              return null;
-            }
-
-            const key = `${numcdc}__${numos}`;
-
-            return {
-              key,
-              numcdc,
-              numos,
-              local: codlcd,                        // CODLCD
-              tipo: codserv,                        // CODSERV
-              dscsvc,                               // DSCSVC
-              estrategia: String(row.ESTRATEGIA ?? "").trim(),
-              tipVeic: String(row.TIP_VEIC ?? "").trim(),
-              // extras que você pode usar depois em popup/tabela:
-              servico: String(row.SERVICO ?? "").trim(),
-              dataPrev: String(row.DATAPREV ?? "").trim(),
-              codEstrategia: String(row.COD_ESTRATEGIA ?? "").trim(),
-              idtundPrz: String(row.IDTUND_PRZ ?? "").trim(),
-              eusd: String(row.EUSD ?? "").trim(),
-              compensacao: String(row.COMPENSACAO ?? "").trim(),
-              tipoCorte: String(row.TIPO_CORTE ?? "").trim(),
-              nome: `${numcdc} - OS ${numos}`,
-              lat,
-              lng,
-            };
-          })
-          .filter((p) => p !== null);
-
-        if (!dataPoints.length) {
-          throw new Error("Nenhum registro válido encontrado em mov_despacho.");
-        }
-
-        if (statusEl) {
-          statusEl.textContent = `${dataPoints.length} pontos carregados.`;
-        }
-
-        buildMapFromData();
-      } catch (err) {
-        console.error(err);
-        dataPoints = [];
-        clearMapLayers();
-        document.getElementById("legendBar").style.display = "none";
-        if (statusEl) statusEl.textContent = "Erro ao carregar dados.";
-        if (errorEl) errorEl.textContent = err.message;
-      }
+    if (error) {
+      console.error("Erro Supabase:", error);
+      throw error;
     }
+
+    console.log("✅ Total de registros recebidos do Supabase:", data.length);
+    console.log("📋 Exemplo de 3 registros:", data.slice(0, 3));
+
+    if (!data || !data.length) {
+      throw new Error("Nenhum registro retornado da tabela mov_despacho.");
+    }
+
+    // Mapeia os registros do Supabase para o formato esperado em dataPoints
+    let descartados = 0;
+    dataPoints = data
+      .map((row) => {
+        const numcdc = String(row.NUMCDC ?? "").trim();
+        const codlcd = String(row.CODLCD ?? "").trim();
+        const codserv = String(row.CODSERV ?? "").trim();
+        const dscsvc = String(row.DSCSVC ?? "").trim();
+        const numos = String(row.NUMOS ?? "").trim();
+
+        // Campos de coordenadas (vêm como text na tabela)
+        const latRaw = row.LAT_SILCO;
+        const lngRaw = row.LONG_SILCO;
+
+        const lat = parseFloat(String(latRaw ?? "").replace(",", "."));
+        const lng = parseFloat(String(lngRaw ?? "").replace(",", "."));
+
+        if (!numcdc || !codlcd || !numos || isNaN(lat) || isNaN(lng)) {
+          descartados++;
+          return null;
+        }
+
+        const key = `${numcdc}__${numos}`;
+
+        return {
+          key,
+          numcdc,
+          numos,
+          local: codlcd,
+          tipo: codserv,
+          dscsvc,
+          estrategia: String(row.ESTRATEGIA ?? "").trim(),
+          tipVeic: String(row.TIP_VEIC ?? "").trim(),
+          servico: String(row.SERVICO ?? "").trim(),
+          dataPrev: String(row.DATAPREV ?? "").trim(),
+          codEstrategia: String(row.COD_ESTRATEGIA ?? "").trim(),
+          idtundPrz: String(row.IDTUND_PRZ ?? "").trim(),
+          eusd: String(row.EUSD ?? "").trim(),
+          compensacao: String(row.COMPENSACAO ?? "").trim(),
+          tipoCorte: String(row.TIPO_CORTE ?? "").trim(),
+          nome: `${numcdc} - OS ${numos}`,
+          lat,
+          lng,
+        };
+      })
+      .filter((p) => p !== null);
+
+    console.log("⚠️ Registros descartados (sem coordenadas ou dados inválidos):", descartados);
+    console.log("✅ Registros válidos para o mapa:", dataPoints.length);
+    console.log("📍 Exemplo de 3 pontos válidos:", dataPoints.slice(0, 3));
+
+    if (!dataPoints.length) {
+      throw new Error("Nenhum registro válido encontrado em mov_despacho.");
+    }
+
+    if (statusEl) {
+      statusEl.textContent = `${dataPoints.length} pontos carregados (${descartados} descartados).`;
+    }
+
+    buildMapFromData();
+    
+    console.log("🗺️ Mapa construído. Total de marcadores:", allMarkers.length);
+    console.log("👁️ Marcadores visíveis:", allMarkers.filter(m => m.visible).length);
+    
+  } catch (err) {
+    console.error("❌ Erro ao carregar OS:", err);
+    dataPoints = [];
+    clearMapLayers();
+    document.getElementById("legendBar").style.display = "none";
+    if (statusEl) statusEl.textContent = "Erro ao carregar dados.";
+    if (errorEl) errorEl.textContent = err.message;
+  }
+}
 
     // === CARREGAR FROTA DO SUPABASE ===
 async function loadFrotaFromSupabase() {
