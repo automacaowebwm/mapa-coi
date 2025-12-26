@@ -1856,9 +1856,10 @@ async function loadOsFromSupabase() {
   try {
     if (statusEl) statusEl.textContent = "Carregando OS do Supabase...";
 
-const { data, error } = await supabaseClient
+const { data, error, count } = await supabaseClient
   .from("mov_despacho")
-  .select("*", { count: "exact", head: false });
+  .select("*", { count: "exact" }) // não precisa do head:false
+  .limit(5000);                    // aqui você sobe o limite
 
     if (error) {
       console.error("Erro Supabase:", error);
